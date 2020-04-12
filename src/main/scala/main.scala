@@ -1,7 +1,13 @@
 import org.apache.log4j.{Level, LogManager}
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.{SQLContext, SparkSession}
-import org.apache.spark.sql.functions.col
+import org.apache.spark.sql.functions.{col, udf}
+import org.apache.spark.ml.feature.{MinMaxScaler, VectorAssembler}
+import org.apache.spark.ml.clustering.KMeans
+import org.apache.spark.ml.linalg.Vectors
+import breeze.linalg._
+import breeze.plot._
+
 
 
 object main {
@@ -13,7 +19,7 @@ object main {
         val sqlContext: SQLContext = spark.sqlContext
         LogManager.getRootLogger.setLevel(Level.ERROR)
 
-        val dataDF = spark.read.option("header", "false").csv("C:\\Users\\pasca\\Desktop\\Projects\\Spark_Projects\\OutlierDetection\\data\\data-example.txt")
+        val dataDF = spark.read.option("header", "false").csv("data\\data-example.txt")
 
         val doubleDF = dataDF
           .withColumn("x", col("_c0").cast("Double"))
@@ -22,6 +28,45 @@ object main {
 
         val filteredDF = doubleDF.filter(row => (row(0) != null && row(1) != null))
 //        filteredDF.show(7653)
+
+        val vectorizeCol = udf( (v:Double) => Vectors.dense(Array(v)))
+        val semiVectorizedDF = filteredDF.withColumn("vec_x", vectorizeCol(filteredDF("x")))
+        val vectorizedDF = semiVectorizedDF.withColumn("vec_y", vectorizeCol(semiVectorizedDF("y")))
+
+        val scale = new MinMaxScaler()
+          .setInputCol("vec_x")
+          .setOutputCol("scaled_x")
+          .setMax(1.0)
+          .setMin(0.0)
+
+        val semiScaledDF = scale.fit(vectorizedDF).transform(vectorizedDF)
+
+        scale.setInputCol("vec_y")
+          .setOutputCol("scaled_y")
+
+        val scaledDF = scale.fit(semiScaledDF).transform(semiScaledDF).select("scaled_x", "scaled_y")
+          .withColumnRenamed("scaled_x", "x")
+          .withColumnRenamed("scaled_y", "y")
+
+
+        val assembler = new VectorAssembler()
+          .setInputCols(Array("x", "y"))
+          .setOutputCol("features")
+
+        val output = assembler.transform(scaledDF)
+
+        val model = new KMeans().setK(5).setSeed(1L).setMaxIter(200).fit(output)
+        val predictions = model.transform(output)
+
+        predictions.show(false)
+
+        val f = Figure()
+        val p = f.subplot(0)
+        val x = linspace(0.0,1.0)
+        p += plot(x)
+        p.xlabel = "x axis"
+        p.ylabel = "y axis"
+        f.saveas("random.png")
 
     }
 
