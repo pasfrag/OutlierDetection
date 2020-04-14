@@ -15,3 +15,7 @@ libraryDependencies += "org.scalanlp" %% "breeze" % "1.0"
 libraryDependencies += "org.scalanlp" %% "breeze-natives" % "1.0"
 
 libraryDependencies += "org.scalanlp" %% "breeze-viz" % "1.0"
+
+libraryDependencies += "org.vegas-viz" %% "vegas" % "0.3.11"
+
+libraryDependencies += "org.vegas-viz" %% "vegas-spark" % "0.3.11"

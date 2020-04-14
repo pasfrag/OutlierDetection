@@ -7,6 +7,9 @@ import org.apache.spark.ml.clustering.KMeans
 import org.apache.spark.ml.linalg.Vectors
 import breeze.linalg._
 import breeze.plot._
+import vegas.sparkExt._
+import vegas._
+
 
 
 
@@ -44,29 +47,38 @@ object main {
         scale.setInputCol("vec_y")
           .setOutputCol("scaled_y")
 
-        val scaledDF = scale.fit(semiScaledDF).transform(semiScaledDF).select("scaled_x", "scaled_y")
-          .withColumnRenamed("scaled_x", "x")
-          .withColumnRenamed("scaled_y", "y")
+        val scaledDF = scale.fit(semiScaledDF).transform(semiScaledDF).select("x","y", "scaled_x", "scaled_y")
+          .withColumnRenamed("scaled_x", "xv")
+          .withColumnRenamed("scaled_y", "yv")
 
 
         val assembler = new VectorAssembler()
-          .setInputCols(Array("x", "y"))
+          .setInputCols(Array("xv", "yv"))
           .setOutputCol("features")
 
         val output = assembler.transform(scaledDF)
 
         val model = new KMeans().setK(5).setSeed(1L).setMaxIter(200).fit(output)
-        val predictions = model.transform(output)
+        val predictions = model.transform(output).select("x", "y", "prediction")
 
         predictions.show(false)
+//        print(predictions)
+//        predictions.write.parquet("predictions.parquet")
+//        val stringCol = udf( (v:Int) => "#".concat(v.toString))
+//        val predictionsNew = predictions.withColumn("color", stringCol(predictions("prediction")))
+//        predictionsNew.show(false)
+//        predictionsNew.write.parquet("predictions.parquet")
 
+        import spark.implicits._
         val f = Figure()
         val p = f.subplot(0)
-        val x = linspace(0.0,1.0)
-        p += plot(x)
+        val x = predictions.select("x").map(r => r.getDouble(0)).collect.toList
+        val y = predictions.select("y").map(r => r.getDouble(0)).collect.toList
+        val color = predictions.select("prediction").map(r => r.getInt(0)).collect.toList
+        p += scatter(x, y, {_=>0.01})
         p.xlabel = "x axis"
         p.ylabel = "y axis"
-        f.saveas("random.png")
+        f.saveas("nooooooobs.png")
 
     }
 
