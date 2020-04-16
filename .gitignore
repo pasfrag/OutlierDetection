@@ -2,3 +2,4 @@
 project/
 target/
 data/
+predictions.csv

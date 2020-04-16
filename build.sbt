@@ -9,13 +9,3 @@ libraryDependencies += "org.apache.spark" %% "spark-core" % "2.4.4"
 libraryDependencies += "org.apache.spark" %% "spark-sql" % "2.4.4"
 
 libraryDependencies += "org.apache.spark" %% "spark-mllib" % "2.4.4"
-
-libraryDependencies += "org.scalanlp" %% "breeze" % "1.0"
-
-libraryDependencies += "org.scalanlp" %% "breeze-natives" % "1.0"
-
-libraryDependencies += "org.scalanlp" %% "breeze-viz" % "1.0"
-
-libraryDependencies += "org.vegas-viz" %% "vegas" % "0.3.11"
-
-libraryDependencies += "org.vegas-viz" %% "vegas-spark" % "0.3.11"

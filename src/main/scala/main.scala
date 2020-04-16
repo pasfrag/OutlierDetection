@@ -3,14 +3,8 @@ import org.apache.spark.SparkContext
 import org.apache.spark.sql.{SQLContext, SparkSession}
 import org.apache.spark.sql.functions.{col, udf}
 import org.apache.spark.ml.feature.{MinMaxScaler, VectorAssembler}
-import org.apache.spark.ml.clustering.KMeans
-import org.apache.spark.ml.linalg.Vectors
-import breeze.linalg._
-import breeze.plot._
-import vegas.sparkExt._
-import vegas._
-
-
+import org.apache.spark.ml.clustering.{BisectingKMeans, KMeans}
+import org.apache.spark.ml.linalg.{Vectors, Vector}
 
 
 object main {
@@ -21,9 +15,11 @@ object main {
         val sc: SparkContext = spark.sparkContext
         val sqlContext: SQLContext = spark.sqlContext
         LogManager.getRootLogger.setLevel(Level.ERROR)
+        import sqlContext.implicits._
 
         val dataDF = spark.read.option("header", "false").csv("data\\data-example.txt")
 
+        // -------------------------------------Preprocessing-----------------------------------------------------------
         val doubleDF = dataDF
           .withColumn("x", col("_c0").cast("Double"))
           .withColumn("y", col("_c1").cast("Double"))
@@ -47,39 +43,43 @@ object main {
         scale.setInputCol("vec_y")
           .setOutputCol("scaled_y")
 
-        val scaledDF = scale.fit(semiScaledDF).transform(semiScaledDF).select("x","y", "scaled_x", "scaled_y")
+        val scaledDF = scale.fit(semiScaledDF).transform(semiScaledDF)
+          .select("x","y", "scaled_x", "scaled_y")
           .withColumnRenamed("scaled_x", "xv")
           .withColumnRenamed("scaled_y", "yv")
 
-
+        // --------------------------------------------KMeans-----------------------------------------------------------
         val assembler = new VectorAssembler()
           .setInputCols(Array("xv", "yv"))
           .setOutputCol("features")
 
         val output = assembler.transform(scaledDF)
 
-        val model = new KMeans().setK(5).setSeed(1L).setMaxIter(200).fit(output)
-        val predictions = model.transform(output).select("x", "y", "prediction")
+        val model = new KMeans().setK(5).setSeed(1L).setMaxIter(1000).fit(output)//new BisectingKMeans().setK(5).setSeed(1L).setMaxIter(200).fit(output)
+        val predictions = model.transform(output).select("x", "y", "prediction", "features")
 
-        predictions.show(false)
-//        print(predictions)
-//        predictions.write.parquet("predictions.parquet")
-//        val stringCol = udf( (v:Int) => "#".concat(v.toString))
-//        val predictionsNew = predictions.withColumn("color", stringCol(predictions("prediction")))
-//        predictionsNew.show(false)
-//        predictionsNew.write.parquet("predictions.parquet")
+//        predictions.show(100, truncate=false)
+        predictions.select("x", "y", "prediction").write.mode("overwrite").csv("predictions.csv")
+        val cluster_centers = model.clusterCenters
+//        cluster_centers.foreach(println)
 
-        import spark.implicits._
-        val f = Figure()
-        val p = f.subplot(0)
-        val x = predictions.select("x").map(r => r.getDouble(0)).collect.toList
-        val y = predictions.select("y").map(r => r.getDouble(0)).collect.toList
-        val color = predictions.select("prediction").map(r => r.getInt(0)).collect.toList
-        p += scatter(x, y, {_=>0.01})
-        p.xlabel = "x axis"
-        p.ylabel = "y axis"
-        f.saveas("nooooooobs.png")
+        // --------------------------------------------Area 51----------------------------------------------------------
+        val distFromCenter = udf((features: Vector, c: Int) => Vectors.sqdist(features, model.clusterCenters(c)))
 
+        val distanceDF = predictions.withColumn("distance", distFromCenter(predictions("features"), predictions("prediction")))
+//        distanceDF.show(20, truncate = false)
+
+        val cluster0DF = distanceDF.filter(row => row(2) == 0).orderBy($"distance".desc)
+        val cluster1DF = distanceDF.filter(row => row(2) == 1).orderBy($"distance".desc)
+        val cluster2DF = distanceDF.filter(row => row(2) == 2).orderBy($"distance".desc)
+        val cluster3DF = distanceDF.filter(row => row(2) == 3).orderBy($"distance".desc)
+        val cluster4DF = distanceDF.filter(row => row(2) == 4).orderBy($"distance".desc)
+
+        cluster0DF.show(truncate = false)
+        cluster1DF.show(truncate = false)
+        cluster2DF.show(truncate = false)
+        cluster3DF.show(truncate = false)
+        cluster4DF.show(truncate = false)
     }
 
 }
